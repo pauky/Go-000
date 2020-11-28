@@ -35,5 +35,5 @@ func Biz() {
 func Dao(id uint64) (*User, error) {
 	//access DB...
 	err := sql.ErrNoRows
-	return nil, errors.Wrapf(err, "query user info has error.userID=%d", id)
+	return nil, errors.Errorf("query user info has error.userID=%d,err=%v", id, err)
 }
