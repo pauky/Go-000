@@ -18,10 +18,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return startServer(context.WithValue(ctx, "", ""), 3000)
+		return startServer(ctx, 3000)
 	})
 	g.Go(func() error {
-		return startServer(context.WithValue(ctx, "", ""), 4000)
+		return startServer(ctx, 4000)
 	})
 	g.Go(func() error {
 		sigs := make(chan os.Signal, 1)
@@ -38,9 +38,10 @@ func main() {
 	fmt.Print("done")
 }
 
-func startServer(ctx context.Context, port int) error {
+func startServer(pCtx context.Context, port int) error {
+	ctx := context.WithValue(pCtx, "", "")
 	portStr := strconv.Itoa(port)
-	log.Print("startServer", portStr)
+	log.Print("startServer: ", portStr)
 
 	var srv http.Server
 	go func(ctx context.Context) {
