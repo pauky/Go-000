@@ -3,19 +3,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	g, _ := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(context.Background())
 	g.Go(func() error {
 		return startServer(ctx, "3000")
 	})
@@ -23,24 +24,18 @@ func main() {
 		return startServer(ctx, "4000")
 	})
 	g.Go(func() error {
-		sigs := make(chan os.Signal, 1)
-		// kill -2 or kill -15
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		sig := <-sigs
-		fmt.Printf("receive sig: %s\n", sig)
-		cancel()
-		return nil
+		return listenSig(ctx)
 	})
-	if err := g.Wait(); err != nil {
-		log.Printf("fail, err: %v\n", err)
-	}
-	fmt.Print("done")
+	g.Go(func() error {
+		time.Sleep(2 * time.Second)
+		return errors.New("it's time to exit")
+	})
+	err := g.Wait()
+	log.Printf("exit, err: %v\n", err)
 }
 
-func startServer(pCtx context.Context, port string) error {
-	ctx := context.WithValue(pCtx, "", "")
-	log.Print("startServer: ", port)
-
+func startServer(ctx context.Context, port string) error {
+	log.Printf("startServer: %s\n", port)
 	srv := http.Server{Addr: ":" + port}
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -51,4 +46,19 @@ func startServer(pCtx context.Context, port string) error {
 	}(ctx)
 
 	return srv.ListenAndServe()
+}
+
+func listenSig(ctx context.Context) error {
+	// kill -2 or kill -15
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	select {
+	case <-ctx.Done():
+		fmt.Printf("no sig")
+		return nil
+	case s := <-sigs:
+		fmt.Printf("receive sig: %s\n", s)
+		return nil
+	}
+	return nil
 }
